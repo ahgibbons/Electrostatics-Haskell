@@ -74,18 +74,31 @@ setVBorder :: Double -> Double -> Array U Ix2 Double -> Array U Ix2 Double
 setVBorder vtop vbottom arr = computeAs U $ imap f arr
   where
     (h :. _) = unSz (size arr)
-    f (i :. _) x =
-        if i == 0
-            then vbottom
-            else if i == h - 1 then vtop else x
+    f (i :. _) x
+        | i == 0 = vbottom
+        | i == h - 1 = vtop
+        | otherwise = x
+
 setHBorder :: Double -> Double -> Array U Ix2 Double -> Array U Ix2 Double
 setHBorder left right arr = computeAs U $ imap f arr
   where
     (_ :. w) = unSz (size arr)
-    f (_ :. j) x =
-        if j == 0
-            then left
-            else if j == w - 1 then right else x
+    f (_ :. j) x
+        | j == 0 = left
+        | j == w - 1 = right
+        | otherwise = x
+
+-- runSim :: Int -> (Array U Ix2 Double -> Array U Ix2 Double) -> IO (Array U Ix2 Double)
+runSim :: Int -> (Array U Ix2 Double -> Array U Ix2 Double) -> IO (Array U Ix2 Double)
+runSim maxIteration runfunc = runsim' 0 runfunc phi
+  where
+    phi = A.replicate Seq (Sz (ny :. nx)) 0.0
+    runsim' n rfunc p
+        | n == maxIteration = return p
+        | n `mod` 100 == 0 = do
+            putStrLn $ "Iteration " ++ show n
+            runsim' (n + 1) rfunc (rfunc p)
+        | otherwise = runsim' (n + 1) rfunc (rfunc p)
 
 main :: IO ()
 main = do
@@ -103,11 +116,11 @@ main = do
     write2csv "charge.csv" $ computeAs U charge
     write2csv "epsilon.csv" $ computeAs U epsilonSim
     let phi0' = makeArray Seq (Sz (ny :. nx)) (const 0.0) :: Array D Ix2 Double
-    let phi50 = iterate (setHBorder (-1.0) (1.0) . step charge2 epsilonSim) (computeAs U phi0') !! iterations
-    write2csv "phi.csv" phi50
+    let resultphi = iterate (setHBorder (-1.0) (1.0) . step charge2 epsilonSim) (computeAs U phi0') !! iterations
+    write2csv "phi.csv" resultphi
 
-    let ex = gradx Wrap phi50
-        ey = grady Wrap phi50
+    let ex = gradx Wrap resultphi
+        ey = grady Wrap resultphi
     write2csv "Ex.csv" ex
     write2csv "Ey.csv" ey
 
